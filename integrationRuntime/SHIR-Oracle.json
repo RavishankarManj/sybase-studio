@@ -1,0 +1,7 @@
+{
+	"name": "SHIR-Oracle",
+	"properties": {
+		"type": "SelfHosted",
+		"description": "IR to connect to Oracle DB in Local machine"
+	}
+}

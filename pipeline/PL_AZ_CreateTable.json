@@ -1,0 +1,197 @@
+{
+	"name": "PL_AZ_CreateTable",
+	"properties": {
+		"activities": [
+			{
+				"name": "If Condition to check the table presence",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup to check table availability",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Lookup to check table availability').output.firstRow.table_detail,'not found')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run Script TargetObjectDDL",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSynapseAnalytics",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@pipeline().parameters.TargetObjectDDL",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Lookup to check Schema availability",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlDWSource",
+						"sqlReaderQuery": {
+							"value": "@concat('IF EXISTS(\nSELECT\n  \t\t\tSCHEMA_NAME\n  \t\tFROM\n  \t\t\tINFORMATION_SCHEMA.SCHEMATA\n  \t\tWHERE\n  \t\t\tSCHEMA_NAME = ','''',pipeline().parameters.TargetSchema,'''',\n\t\t\t')\nSELECT ''found'' AS schema_detail ELSE SELECT ''not found'' AS schema_detail;')",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_META",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "If Condition to check the schema presence",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Lookup to check Schema availability",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Lookup to check Schema availability').output.firstRow.schema_detail,'not found')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Run Script TargetSchema",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_AzureSynapseAnalytics",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "CREATE SCHEMA @{pipeline().parameters.TargetSchema}",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Lookup to check table availability",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "If Condition to check the schema presence",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlDWSource",
+						"sqlReaderQuery": {
+							"value": "@concat('IF EXISTS(\nSELECT\n  \t\t\tTABLE_NAME\n  \t\tFROM\n  \t\t\tINFORMATION_SCHEMA.TABLES\n  \t\tWHERE\n  \t\t\tTABLE_NAME = ','''',pipeline().parameters.TargetObjectName,'''',\n\t\t\t')\nSELECT ''found'' AS table_detail ELSE SELECT ''not found'' AS table_detail;')",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_Synapse_Pool",
+						"type": "DatasetReference",
+						"parameters": {
+							"Schema": {
+								"value": "@pipeline().parameters.TargetSchema",
+								"type": "Expression"
+							},
+							"Tablename": {
+								"value": "@pipeline().parameters.TargetObjectName",
+								"type": "Expression"
+							}
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"TargetObjectName": {
+				"type": "string",
+				"defaultValue": "DIM_CUSTOMER1"
+			},
+			"TargetObjectDDL": {
+				"type": "string",
+				"defaultValue": "CREATE TABLE test1.dim_customer1 ( CUSTOMER_KEY int Not Null, CUSTOMER_CODE VARCHAR(20), ADDRESS VARCHAR(100), LOCATION_NO VARCHAR(10), INDUSTRY VARCHAR(10), GROUP_NAME VARCHAR(10), ACCOUNT_GROUP VARCHAR(10), CUSTOMER_CLASS VARCHAR(10), COUNTRY VARCHAR(10), VENDOR VARCHAR(10), DELETION_FLAG varchar(100), NAME VARCHAR(255), NAME2 VARCHAR(255), NAME3 VARCHAR(255), NIELSEN_ID VARCHAR(255), CITY VARCHAR(100), DISTRICT VARCHAR(100), PO_BOX VARCHAR(10), PO_BOX_PCODE VARCHAR(10), POSTAL_CODE VARCHAR(10), REGION VARCHAR(10), COUNTY_CODE VARCHAR(10), SEARCH_TERM VARCHAR(100), LANGUAGE VARCHAR(10), TAX_NUMBER1 VARCHAR(255), TAX_NUMBER2 VARCHAR(255), STREET VARCHAR(100), TELEPHONE VARCHAR(100), FAX_NUMBER VARCHAR(100), TRANSPORT_ZONE VARCHAR(100), ONETIME_ACCT VARCHAR(100), TRADING_PARTNER VARCHAR(100), VAT_REG_NO VARCHAR(100), CONSUMER VARCHAR(100), INDUSTRY_CODE1 VARCHAR(100), INDUSTRY_CODE2 VARCHAR(100), INDUSTRY_CODE3 VARCHAR(100), INDUSTRY_CODE4 VARCHAR(100), INDUSTRY_CODE5 VARCHAR(100), FIYEAR_VARIANT VARCHAR(100), USAGE_DESC VARCHAR(100), POBOX_CITY VARCHAR(100), PLANT VARCHAR(100), TAX_NUMBER3 VARCHAR(100), TAX_NUMBER4 VARCHAR(100), DB_CREATED_DATE datetime, DB_CREATED_BY VARCHAR(100), DB_UPDATED_DATE datetime, DB_UPDATED_BY VARCHAR(100) )"
+			},
+			"TargetSchema": {
+				"type": "string",
+				"defaultValue": "TEST1"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-03-08T11:17:06Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

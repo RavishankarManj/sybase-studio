@@ -1,0 +1,362 @@
+{
+	"name": "PL_SAP_TO_ADLS_copy1",
+	"properties": {
+		"activities": [
+			{
+				"name": "SAP_TO_ADLS",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "ObjectsLookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "DF_SAP_TO_ADLS",
+						"type": "DataFlowReference",
+						"parameters": {
+							"Container": {
+								"value": "'@{split(split(activity('ObjectsLookup').output.firstRow.ContainerPath, '/')[2], '@')[0]}'",
+								"type": "Expression"
+							},
+							"directory": {
+								"value": "'@{concat(activity('ObjectsLookup').output.firstRow.BronzeLayerPath, '/', activity('ObjectsLookup').output.firstRow.sourcetype, '/',activity('ObjectsLookup').output.firstRow.schema, '/', activity('ObjectsLookup').output.firstRow.SourceObjectName)}'",
+								"type": "Expression"
+							},
+							"filename": {
+								"value": "'@{concat(activity('ObjectsLookup').output.firstRow.SourceObjectName, '_', formatDateTime(pipeline().TriggerTime,'yyyyMMddHHMMss'), '.parquet')}'",
+								"type": "Expression"
+							},
+							"ODPName": {
+								"value": "'@{activity('ObjectsLookup').output.firstRow.filepath}'",
+								"type": "Expression"
+							}
+						}
+					},
+					"staging": {
+						"linkedService": {
+							"referenceName": "ls_adls_difadlsdev",
+							"type": "LinkedServiceReference"
+						},
+						"folderPath": "bronze/SAP/difacceleratoradlsfs"
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Coarse"
+				}
+			},
+			{
+				"name": "ObjectsLookup",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderStoredProcedureName": "[dbo].[GetObjectsMetadata]",
+						"storedProcedureParameters": {
+							"objectid": {
+								"type": "Int32",
+								"value": {
+									"value": "@pipeline().parameters.ObjectId",
+									"type": "Expression"
+								}
+							}
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_METADATA",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Column Mapping Lookup",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Execute Pipeline CreateTable",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM dbo.ObjectColumnMapping WHERE ObjectID = @{pipeline().parameters.ObjectId} AND IsActive = 1;",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_METADATA",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Execute Pipeline CreateTable",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "SAP_TO_ADLS",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_AZ_CreateTable",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"TargetObjectName": {
+							"value": "@activity('ObjectsLookup').output.firstRow.TargetObjectName",
+							"type": "Expression"
+						},
+						"TargetObjectDDL": {
+							"value": "@activity('ObjectsLookup').output.firstRow.TargetObjectDDL",
+							"type": "Expression"
+						},
+						"TargetSchema": {
+							"value": "@activity('ObjectsLookup').output.firstRow.schema",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "NB_DATA_LOAD",
+				"type": "SynapseNotebook",
+				"dependsOn": [
+					{
+						"activity": "Column Mapping Lookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebook": {
+						"referenceName": {
+							"value": "NB_DATA_LOAD",
+							"type": "Expression"
+						},
+						"type": "NotebookReference"
+					},
+					"parameters": {
+						"bronze_directory": {
+							"value": {
+								"value": "@concat(activity('ObjectsLookup').output.firstRow.BronzeLayerPath, '/', activity('ObjectsLookup').output.firstRow.sourcetype, '/', activity('ObjectsLookup').output.firstRow.schema, '/', activity('ObjectsLookup').output.firstRow.SourceObjectName)",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"bronze_file_name": {
+							"value": {
+								"value": "@concat(activity('ObjectsLookup').output.firstRow.SourceObjectName, '_', formatDateTime(pipeline().TriggerTime,'yyyyMMddHHMMss'), '.parquet')",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"container_name": {
+							"value": {
+								"value": "@split(split(activity('ObjectsLookup').output.firstRow.ContainerPath, '/')[2], '@')[0]",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"schema": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.schema",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"load_type": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.LoadType",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"source_name": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.SourceName",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"source_object_name": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.SourceObjectName",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"parition_column": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.paritioncolumn",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"target_object_name": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.TargetObjectName",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"container_path": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.ContainerPath",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"Validation_layer_Path": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.ContainerPath",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"silver_layer_path": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.SilverLayerPath",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"ingestion_id": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.IngestionId",
+								"type": "Expression"
+							},
+							"type": "int"
+						},
+						"file_path": {
+							"value": {
+								"value": "@activity('ObjectsLookup').output.firstRow.IngestionId",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"object_id": {
+							"value": {
+								"value": "@pipeline().parameters.ObjectId",
+								"type": "Expression"
+							},
+							"type": "int"
+						},
+						"ingestion_name": {
+							"value": {
+								"value": "@pipeline().parameters.IngestionName",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"attributes_details": {
+							"value": {
+								"value": "@string(activity('Column Mapping Lookup').output.value)",
+								"type": "Expression"
+							},
+							"type": "string"
+						},
+						"target_database": {
+							"value": "dif_accelerator_dedicate_pool",
+							"type": "string"
+						},
+						"objectLookup": {
+							"value": {
+								"value": "@string(activity('ObjectsLookup').output.firstRow)",
+								"type": "Expression"
+							},
+							"type": "string"
+						}
+					},
+					"snapshot": true,
+					"sparkPool": {
+						"referenceName": {
+							"value": "difaccsparkpool",
+							"type": "Expression"
+						},
+						"type": "BigDataPoolReference"
+					},
+					"executorSize": "Small",
+					"driverSize": "Small"
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_AzureSynapseAnalytics_WS",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"ObjectId": {
+				"type": "string",
+				"defaultValue": "48"
+			},
+			"IngestionName": {
+				"type": "string",
+				"defaultValue": "SAP"
+			}
+		},
+		"folder": {
+			"name": "Child pipelines"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-03-12T06:42:45Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

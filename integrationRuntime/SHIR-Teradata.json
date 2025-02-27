@@ -1,0 +1,6 @@
+{
+	"name": "SHIR-Teradata",
+	"properties": {
+		"type": "SelfHosted"
+	}
+}

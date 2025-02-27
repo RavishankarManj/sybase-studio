@@ -1,0 +1,263 @@
+{
+	"name": "PL_SAP_METADATA_INS",
+	"properties": {
+		"activities": [
+			{
+				"name": "Objectdetail_lookup",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select * from ObjectDetails \nwhere IngestionId = '@{pipeline().parameters.IngestionId}' and IsActive = 1",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_METADATA",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach1",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Objectdetail_lookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Objectdetail_lookup').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "column mapping lookup",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT * FROM ObjectColumnMapping WHERE\nObjectId = '@{item().Objectid}'",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DS_SQL_METADATA",
+									"type": "DatasetReference"
+								},
+								"firstRowOnly": false
+							}
+						},
+						{
+							"name": "If Condition1",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "column mapping lookup",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@not(contains(activity('column mapping lookup').output, 'firstRow'))",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "insert obj id from sttm_copy1",
+										"type": "SynapseNotebook",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"notebook": {
+												"referenceName": {
+													"value": "SAP_Column_Mapping",
+													"type": "Expression"
+												},
+												"type": "NotebookReference"
+											},
+											"parameters": {
+												"Object_Id": {
+													"value": {
+														"value": "@{item().ObjectId}",
+														"type": "Expression"
+													},
+													"type": "int"
+												},
+												"SAP_Path": {
+													"value": {
+														"value": "@string(concat('abfs://dif-raw-cont@difacceleratoradlsdevsa.dfs.core.windows.net/STTM/',item().SttmFileName,'.xlsx'))",
+														"type": "Expression"
+													},
+													"type": "string"
+												},
+												"sheetname": {
+													"value": {
+														"value": "@string(item().SttmSheetPath)",
+														"type": "Expression"
+													},
+													"type": "string"
+												}
+											},
+											"snapshot": true,
+											"sparkPool": {
+												"referenceName": {
+													"value": "difaccsparkpool",
+													"type": "Expression"
+												},
+												"type": "BigDataPoolReference"
+											},
+											"executorSize": "Small",
+											"conf": {
+												"spark.dynamicAllocation.enabled": true
+											},
+											"driverSize": "Small"
+										},
+										"linkedServiceName": {
+											"referenceName": "LS_AzureSynapseAnalytics_WS",
+											"type": "LinkedServiceReference"
+										}
+									},
+									{
+										"name": "insert data_copy",
+										"type": "Lookup",
+										"dependsOn": [
+											{
+												"activity": "insert obj id from sttm_copy1",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "AzureSqlSource",
+												"sqlReaderQuery": {
+													"value": "@activity('insert obj id from sttm_copy1').output.status.Output.result.exitValue ",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"dataset": {
+												"referenceName": "DS_SQL_METADATA",
+												"type": "DatasetReference"
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"name": "search for target ddl",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "If Condition1",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(item().TargetObjectDDL,'')",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "create ddl_copy",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[CreateTargetTables_pjt1]",
+											"storedProcedureParameters": {
+												"sourceobjectid": {
+													"value": {
+														"value": "@item().ObjectId",
+														"type": "Expression"
+													},
+													"type": "Int64"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "AzureSqlDatabase1",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"IngestionId": {
+				"type": "string",
+				"defaultValue": "8"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-03-12T09:17:23Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

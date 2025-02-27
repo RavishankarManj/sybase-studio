@@ -1,0 +1,17 @@
+{
+	"name": "TEST_SAP",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_SAP",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SapOdpResource",
+		"schema": [],
+		"typeProperties": {
+			"context": "SAPI",
+			"objectName": "0CUSTOMER_ATTR"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

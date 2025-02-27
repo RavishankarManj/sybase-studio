@@ -1,0 +1,186 @@
+{
+	"name": "PL_MASTER_ORCH",
+	"properties": {
+		"activities": [
+			{
+				"name": "ObjectsLoop",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "IngestionLookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('IngestionLookup').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Execute SAP Pipeline_copy1",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "PL_LOAD_SAP",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"ObjectId": {
+										"value": "@item().ObjectId",
+										"type": "Expression"
+									},
+									"IngestionName": {
+										"value": "@pipeline().parameters.IngestionName",
+										"type": "Expression"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "IngestionLookup",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderStoredProcedureName": "[dbo].[GetSourceObjects]",
+						"storedProcedureParameters": {
+							"IngestionName": {
+								"type": "String",
+								"value": {
+									"value": "@pipeline().parameters.IngestionName",
+									"type": "Expression"
+								}
+							},
+							"triggertime": {
+								"type": "Datetime",
+								"value": {
+									"value": "@pipeline().TriggerTime",
+									"type": "Expression"
+								}
+							}
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_METADATA",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "AuditLookup",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "ObjectsLoop",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM dbo.Auditlog WHERE MasterPipelineRunId = '@{pipeline().RunId}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_METADATA",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Send Notification",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "AuditLookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "POST",
+					"url": "https://prod-13.eastus.logic.azure.com:443/workflows/658f3992f9a04014971e498c813c0f9d/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=WNyduHBXWZk_1rxzjskBV5YMxgCZ-t8jq1MNF3BLMNU",
+					"body": {
+						"value": "{\n    \"message\" : \"This is a custom dynamic message from your pipeline with run ID @{pipeline().RunId}.\",\n    \"dataFactoryName\" : \"@{pipeline().DataFactory}\", \n    \"RunId\" : \"@{pipeline().RunId}\",\n    \"pipelineName\" : \"@{pipeline().Pipeline}\", \n    \"receiver\" : \"developer\",\n    \"sourceName\": \"@{activity('IngestionLookup').output.value[0].sourcename}\",\n    \"sourceType\": \"@{activity('IngestionLookup').output.value[0].datasourcetype}\"\n   }",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"IngestionName": {
+				"type": "string",
+				"defaultValue": "SAP_Source"
+			}
+		},
+		"variables": {
+			"test": {
+				"type": "String"
+			},
+			"r": {
+				"type": "String"
+			},
+			"t1": {
+				"type": "String"
+			},
+			"t2": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "Master Pipeline"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-04T07:18:38Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

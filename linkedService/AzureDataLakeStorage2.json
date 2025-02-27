@@ -1,0 +1,22 @@
+{
+	"name": "AzureDataLakeStorage2",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"parameters": {
+			"StorageAccountEndpoint": {
+				"type": "String",
+				"defaultValue": "https://difacceleratoradlsdevsa.dfs.core.windows.net"
+			}
+		},
+		"annotations": [],
+		"type": "AzureBlobStorage",
+		"typeProperties": {
+			"url": "https://difacceleratoradlsdevsa.dfs.core.windows.net/",
+			"accountKey": {
+				"type": "SecureString",
+				"value": "**********"
+			},
+			"serviceEndpoint": "@{linkedService().StorageAccountEndpoint}"
+		}
+	}
+}

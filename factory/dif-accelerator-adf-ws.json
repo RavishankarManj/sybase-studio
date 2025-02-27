@@ -1,0 +1,9 @@
+{
+	"name": "dif-accelerator-adf-ws",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "6bf2caa8-0caa-43b5-918c-ecc2f34856fe",
+		"tenantId": "e714ef31-faab-41d2-9f1e-e6df4af16ab8"
+	}
+}

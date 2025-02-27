@@ -1,0 +1,25 @@
+{
+	"name": "DS_SAP",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_SAP",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"odp_name": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "SapOdpResource",
+		"schema": [],
+		"typeProperties": {
+			"context": "SAPI",
+			"objectName": {
+				"value": "@dataset().odp_name",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

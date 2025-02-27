@@ -1,0 +1,20 @@
+{
+	"name": "LS_SAP",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "SapOdp",
+		"typeProperties": {
+			"clientId": "400",
+			"sncMode": false,
+			"userName": "REMOTE_USER",
+			"server": "sapquickaccess.in",
+			"systemNumber": "73",
+			"encryptedCredential": "eyJDcmVkZW50aWFsSWQiOiI5ZDQ2NzJiNC0zMjE5LTQ4OTktYTk2Ny0yYTRiNDM4YjY4NDMiLCJWZXJzaW9uIjoiMi4wIiwiQ2xhc3NUeXBlIjoiTWljcm9zb2Z0LkRhdGFQcm94eS5Db3JlLkludGVyU2VydmljZURhdGFDb250cmFjdC5DcmVkZW50aWFsU1UwNkNZMTQifQ=="
+		},
+		"connectVia": {
+			"referenceName": "SHIR-SAP",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

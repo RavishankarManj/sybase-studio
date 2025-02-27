@@ -1,0 +1,13 @@
+{
+	"name": "LS_AzureSynapseAnalytics_WS",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSynapseArtifacts",
+		"typeProperties": {
+			"endpoint": "https://dif-accelerator-synapse-ws.dev.azuresynapse.net",
+			"authentication": "MSI",
+			"workspaceResourceId": "/subscriptions/f1190072-3e7b-4702-bb20-01d266493d7c/resourceGroups/tiger-dif-accelerator/providers/Microsoft.Synapse/workspaces/dif-accelerator-synapse-ws"
+		}
+	}
+}
